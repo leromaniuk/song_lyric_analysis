@@ -5,16 +5,18 @@ Created on Sat Aug 13 18:38:24 2022
 """
 import spotipy
 import requests
+import time
 import pandas as pd
 
 from bs4 import BeautifulSoup
+from lyricsgenius import Genius
+from urllib.error import HTTPError
 from spotipy.oauth2 import SpotifyClientCredentials
-
-
 
 client_credentials_manager = SpotifyClientCredentials(client_id=cid,
                                                       client_secret=secret)
-sp = spotipy.Spotify(client_credentials_manager = client_credentials_manager)
+sp = spotipy.Spotify(client_credentials_manager = client_credentials_manager,
+                     requests_timeout=10, retries=10)
 
 def get_wiki_album_names():
     
@@ -75,7 +77,12 @@ def get_album_tracks(album, artist):
               + " API search")
     
     else:
-        all_tracks = sp.album_tracks(uri, limit=50, offset=0, market=None)
+        try:
+            all_tracks = sp.album_tracks(uri, limit=50, offset=0, market=None)
+        
+        except requests.exceptions.timeout:
+            time.sleep(10)
+            all_tracks = sp.album_tracks(uri, limit=50, offset=0, market=None)
         
         for i in range(len(all_tracks['items'])):
             track = all_tracks['items'][i]['name']
@@ -85,30 +92,80 @@ def get_album_tracks(album, artist):
         
     return df
 
-
-def append_album_tracks(albums):
+def get_track_lyrics(track, artist):
+    
     '''
-    Given dataframe with album and artist names function adds column with 
-    track names
+    Given track and artist name function returns track lyrics from genius API
     
     Parameters:
-        df (DataFrame): df containing artist, album
+        album (str): track name
         artist (str): artist name
 
     Returns:
-        df (DataFrame): df containing artist, album and tracks
+        df (DataFrame): df containing artist, track and lyrics
     '''
+    try:
+        lyric = genius.search_song(track, artist).lyrics
     
-    tracks = pd.DataFrame(columns=['artist', 'album', 'track'])
+    except AttributeError:
+        lyric = None
+        
+    except HTTPError:
+        time.sleep(10)
+        lyric = genius.search_song(track, artist).lyrics
+        
+    except requests.exceptions.timeout:
+        time.sleep(10)
+        lyric = genius.search_song(track, artist).lyrics
     
-    for i in range(len(albums)):
-        tracks = tracks.append(get_album_tracks(albums['album'][i], albums['artist'][i]))
-        print(i)
-        
-    albums = albums.merge(tracks, on=['artist', 'album'], how='left')
-        
-    return albums
+    d = {'artist': artist, 
+         'track': track, 
+         'lyric': lyric}
+    
+    df = pd.DataFrame(data = d, index=[0])
+    
+    return df
+
+
+def add_new_column(df, column):
+    '''
+    Given dataframe with artist and album/track names, function adds column with 
+    tracks/lyrics.
+    
+    Parameters:
+        df (DataFrame): df containing artist, album/ tracks
+        column (str): column to add to dataframe. Takes two inputs:
+                        -track
+                        -lyric
+
+    Returns:
+        df (DataFrame): df with specified column
+    '''
+    t0 = time.time()
+    
+    if column == "track":
+        join_column = 'album'
+    if column == "lyric":
+        join_column = 'track'
+
+    values = pd.DataFrame(columns=['artist', join_column, column])
+    
+    for i in range(len(df)):
+        if column == "track":
+            values = values.append(get_album_tracks(df[join_column][i], df['artist'][i]))
+        if column == "lyric":
+            values = values.append(get_track_lyrics(df[join_column][i], df['artist'][i]))
+        print(str(i)+"/"+str(len(df)))
+    
+    df = df.merge(values, on=['artist', join_column], how='left')
+    
+    t1 = time.time() - t0
+    print("Time elapsed: ", t1, " seconds")
+    
+    return df
+
 
 albums = get_wiki_album_names()
-append_album_tracks(albums)
-
+len(albums)
+albums_and_tracks = add_new_column(albums, 'track')
+tracks_and_lyrics = add_new_column(albums_and_tracks, 'lyric')
