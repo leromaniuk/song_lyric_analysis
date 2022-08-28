@@ -80,7 +80,7 @@ def get_album_tracks(album, artist):
         try:
             all_tracks = sp.album_tracks(uri, limit=50, offset=0, market=None)
         
-        except requests.exceptions.timeout:
+        except requests.exceptions.Timeout:
             time.sleep(10)
             all_tracks = sp.album_tracks(uri, limit=50, offset=0, market=None)
         
@@ -114,7 +114,7 @@ def get_track_lyrics(track, artist):
         time.sleep(10)
         lyric = genius.search_song(track, artist).lyrics
         
-    except requests.exceptions.timeout:
+    except requests.exceptions.Timeout:
         time.sleep(10)
         lyric = genius.search_song(track, artist).lyrics
     
