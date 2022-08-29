@@ -15,6 +15,13 @@ from spotipy.oauth2 import SpotifyClientCredentials
 
 from modules import constant_paths as cp
 
+sp = spotipy.Spotify(client_credentials_manager = 
+                         SpotifyClientCredentials(
+                             client_id = cp.SPOTIFY_CLIENT_ID,
+                             client_secret = cp.SPOTIFY_CLIENT_SECRET),
+                         requests_timeout=10, retries=10)
+    
+genius = Genius(cp.GENIUS_ACCESS_TOKEN)
 
 def import_data(overwrite=False):
     '''
@@ -29,26 +36,23 @@ def import_data(overwrite=False):
     
     if os.path.exists(cp.DATA_PATH + "lyrics_2020.csv") == False\
     or overwrite == True:
-        sp = spotipy.Spotify(client_credentials_manager = 
-                         SpotifyClientCredentials(
-                             client_id = cp.SPOTIFY_CLIENT_ID,
-                             client_secret = cp.SPOTIFY_CLIENT_SECRET),
-                         requests_timeout=10, retries=10)
-    
-        genius = Genius(cp.GENIUS_ACCESS_TOKEN)
         
-        print("collecting 2020 ablum names")
+        print("collecting 2020 album names")
         albums = get_wiki_album_names()
-        print("collecting ablum tracks from Spotify API")
+        print("collecting album tracks from Spotify API")
         albums_and_tracks = add_new_column(albums, 'track')
         print("collecting track lyrics from Genius API")
         tracks_and_lyrics = add_new_column(albums_and_tracks, 'lyric')
-
-        tracks_and_lyrics.to_csv(cp.DATA_PATH + "lyrics_2020.csv")
-        print("file written: " + cp.DATA_PATH + "lyrics_2020.csv")
         
-    df = pd.read_csv(cp.DATA_PATH + "lyrics_2020.csv")
-    
+        try:
+            tracks_and_lyrics.to_csv(cp.DATA_PATH + "lyrics_2020.csv")
+            print("file written: " + cp.DATA_PATH + "lyrics_2020.csv")
+        except Exception as e:
+            print(str(e))
+            df = tracks_and_lyrics
+    else:
+        df = pd.read_csv(cp.DATA_PATH + "lyrics_2020.csv")
+  
     return df
     
 
@@ -103,7 +107,7 @@ def get_album_tracks(album, artist):
     searchQuery = album + ' ' + artist
     searchResults = sp.search(q=searchQuery, limit = 1)
     
-    df = pd.DataFrame(columns=['artist', 'album', 'track'])
+    df = pd.DataFrame(columns=['artist', 'album', 'track', 'track_uri'])
         
     try:
         uri = searchResults['tracks']['items'][0]['album']['uri']
@@ -124,11 +128,13 @@ def get_album_tracks(album, artist):
                 continue
             break
             
-    for i in range(len(all_tracks['items'])):
-        track = all_tracks['items'][i]['name']
-        df = df.append({'artist': artist, 
-                        'album': album,
-                        'track': track}, ignore_index=True)
+        for i in range(len(all_tracks['items'])):
+            track = all_tracks['items'][i]['name']
+            track_uri = all_tracks['items'][i]['uri']
+            df = df.append({'artist': artist, 
+                            'album': album,
+                            'track': track,
+                             'track_uri': track_uri}, ignore_index=True)
          
     return df
         
@@ -213,17 +219,3 @@ def add_new_column(df, column):
     
     return df
 
-sp = spotipy.Spotify(client_credentials_manager = 
-                         SpotifyClientCredentials(
-                             client_id = cp.SPOTIFY_CLIENT_ID,
-                             client_secret = cp.SPOTIFY_CLIENT_SECRET),
-                         requests_timeout=10, retries=10)
-    
-genius = Genius(cp.GENIUS_ACCESS_TOKEN)
-albums = get_wiki_album_names()
-albums = albums.head(50)
-len(albums)
-albums_and_tracks = add_new_column(albums, 'track')
-tracks_and_lyrics = add_new_column(albums_and_tracks, 'lyric')
-
-tracks_and_lyrics.to_csv("C:/Documents/python_project/song_lyric_analysis/data/lyrics_2020.csv")
