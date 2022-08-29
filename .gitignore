@@ -1,3 +1,5 @@
 *.csv
 *.cache
+.spyproject/
+**__pycache__
 modules/constant_paths.py

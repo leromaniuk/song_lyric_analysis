@@ -6,16 +6,52 @@ Created on Sat Aug 13 18:38:24 2022
 import spotipy
 import requests
 import time
+import os
 import pandas as pd
 
 from bs4 import BeautifulSoup
 from lyricsgenius import Genius
 from spotipy.oauth2 import SpotifyClientCredentials
 
-client_credentials_manager = SpotifyClientCredentials(client_id=cid,
-                                                      client_secret=secret)
-sp = spotipy.Spotify(client_credentials_manager = client_credentials_manager,
-                     requests_timeout=10, retries=10)
+from modules import constant_paths as cp
+
+
+def import_data(overwrite=False):
+    '''
+    Opens csv with artist, album, tracks, lyrics information
+    if file not found or overwrite is specified function creates csv
+    
+    Parameters:
+        overwrite (bool): Select True to create and overwrite csv
+    Returns:
+            df (DataFrame): pd dataframe with artist, album, tracks, lyrics
+    '''
+    
+    if os.path.exists(cp.DATA_PATH + "lyrics_2020.csv") == False\
+    or overwrite == True:
+        sp = spotipy.Spotify(client_credentials_manager = 
+                         SpotifyClientCredentials(
+                             client_id = cp.SPOTIFY_CLIENT_ID,
+                             client_secret = cp.SPOTIFY_CLIENT_SECRET),
+                         requests_timeout=10, retries=10)
+    
+        genius = Genius(cp.GENIUS_ACCESS_TOKEN)
+        
+        print("collecting 2020 ablum names")
+        albums = get_wiki_album_names()
+        print("collecting ablum tracks from Spotify API")
+        albums_and_tracks = add_new_column(albums, 'track')
+        print("collecting track lyrics from Genius API")
+        tracks_and_lyrics = add_new_column(albums_and_tracks, 'lyric')
+
+        tracks_and_lyrics.to_csv(cp.DATA_PATH + "lyrics_2020.csv")
+        print("file written: " + cp.DATA_PATH + "lyrics_2020.csv")
+        
+    df = pd.read_csv(cp.DATA_PATH + "lyrics_2020.csv")
+    
+    return df
+    
+
 
 def get_wiki_album_names():
     
@@ -177,7 +213,13 @@ def add_new_column(df, column):
     
     return df
 
-
+sp = spotipy.Spotify(client_credentials_manager = 
+                         SpotifyClientCredentials(
+                             client_id = cp.SPOTIFY_CLIENT_ID,
+                             client_secret = cp.SPOTIFY_CLIENT_SECRET),
+                         requests_timeout=10, retries=10)
+    
+genius = Genius(cp.GENIUS_ACCESS_TOKEN)
 albums = get_wiki_album_names()
 albums = albums.head(50)
 len(albums)
