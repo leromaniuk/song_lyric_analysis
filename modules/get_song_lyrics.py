@@ -10,7 +10,6 @@ import pandas as pd
 
 from bs4 import BeautifulSoup
 from lyricsgenius import Genius
-from urllib.error import HTTPError
 from spotipy.oauth2 import SpotifyClientCredentials
 
 client_credentials_manager = SpotifyClientCredentials(client_id=cid,
@@ -69,7 +68,7 @@ def get_album_tracks(album, artist):
     searchResults = sp.search(q=searchQuery, limit = 1)
     
     df = pd.DataFrame(columns=['artist', 'album', 'track'])
-    
+        
     try:
         uri = searchResults['tracks']['items'][0]['album']['uri']
     except IndexError:
@@ -77,20 +76,26 @@ def get_album_tracks(album, artist):
               + " API search")
     
     else:
-        try:
-            all_tracks = sp.album_tracks(uri, limit=50, offset=0, market=None)
-        
-        except requests.exceptions.Timeout:
-            time.sleep(10)
-            all_tracks = sp.album_tracks(uri, limit=50, offset=0, market=None)
-        
-        for i in range(len(all_tracks['items'])):
-            track = all_tracks['items'][i]['name']
-            df = df.append({'artist': artist, 
-                            'album': album,
-                            'track': track}, ignore_index=True)
-        
+        retries = 0
+        while retries < 2:
+            try:
+                all_tracks = sp.album_tracks(uri, limit=50, offset=0, market=None)
+            
+            except requests.exceptions.Timeout:
+                print("Timeout error wait 10 seconds and retry, attempt: " + retries)
+                time.sleep(10)
+                retries = retries + 1
+                continue
+            break
+            
+    for i in range(len(all_tracks['items'])):
+        track = all_tracks['items'][i]['name']
+        df = df.append({'artist': artist, 
+                        'album': album,
+                        'track': track}, ignore_index=True)
+         
     return df
+        
 
 def get_track_lyrics(track, artist):
     
@@ -104,28 +109,36 @@ def get_track_lyrics(track, artist):
     Returns:
         df (DataFrame): df containing artist, track and lyrics
     '''
-    try:
-        lyric = genius.search_song(track, artist).lyrics
-    
-    except AttributeError:
-        lyric = None
+    retries = 0
+    while retries < 5:
+        try:
+            lyric = genius.search_song(track, artist).lyrics
         
-    except HTTPError:
-        time.sleep(10)
-        lyric = genius.search_song(track, artist).lyrics
+        except AttributeError:
+            lyric = None
+            break
         
-    except requests.exceptions.Timeout:
-        time.sleep(10)
-        lyric = genius.search_song(track, artist).lyrics
-    
+        except Exception as e:
+            print(str(e))
+            if retries < 4:
+                time.sleep(10)
+                retries = retries + 1
+                continue
+            else:
+                print(f"Unable to collect lyrics for Track '{track}' by " +
+                      "artist '{artist}', save as None value")
+                lyric = None
+                break    
+        break
+        
     d = {'artist': artist, 
          'track': track, 
          'lyric': lyric}
     
     df = pd.DataFrame(data = d, index=[0])
-    
-    return df
 
+    return df
+  
 
 def add_new_column(df, column):
     '''
@@ -166,6 +179,9 @@ def add_new_column(df, column):
 
 
 albums = get_wiki_album_names()
+albums = albums.head(50)
 len(albums)
 albums_and_tracks = add_new_column(albums, 'track')
 tracks_and_lyrics = add_new_column(albums_and_tracks, 'lyric')
+
+tracks_and_lyrics.to_csv("C:/Documents/python_project/song_lyric_analysis/data/lyrics_2020.csv")
