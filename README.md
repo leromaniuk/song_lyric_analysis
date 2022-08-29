@@ -1,12 +1,12 @@
 # Song Lyric Analysis
-The aim of the project is to classify songs into genres based on their lyrics.
+The aim of this project is to predict song's genres from their lyrics.
 
 ### Getting Started
 
 To run code from this repository, required package imports are found in the yml file.
 Collecting data for analysis will require developer accounts with both Spotify and Genius. After creating accounts, you will be provided a client_id and client_secret needed to access data from the API. Below is guidance for how to set up the accounts:
-•	Spotify: https://developer.spotify.com/documentation/general/guides/authorization/app-settings/
-•	Genius: https://docs.genius.com/#/getting-started-h
+* [Spotify](https://developer.spotify.com/documentation/general/guides/authorization/app-settings/)
+* [Genius](https://docs.genius.com/#/getting-started-h)
 
 ### Collecting data
 
