@@ -172,6 +172,8 @@ def get_track_lyrics(track, artist):
                 lyric = None
                 break    
         break
+    
+    lyric = (lyric[:30000] + ' [TRUNCATED]') if len(lyric) > 30000 else lyric
         
     d = {'artist': artist, 
          'track': track, 
@@ -218,4 +220,3 @@ def add_new_column(df, column):
     print("Time elapsed: ", t1, " seconds")
     
     return df
-
