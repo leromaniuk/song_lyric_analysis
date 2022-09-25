@@ -31,8 +31,7 @@ def data_cleaning(data):
     '''
     Function provides basic cleaning for collected dataframe 
         - removes rows with track duplicates
-        - removes rows with traks and lyrics
-    
+        - removes rows with missing tracks or lyrics
     
     Parameters:
         df (DataFrame): df containing artist, album/ tracks
