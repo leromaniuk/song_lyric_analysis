@@ -39,8 +39,10 @@ def import_data(overwrite=False):
         
         print("collecting 2020 album names")
         albums = get_wiki_album_names()
+        print("collecting artist genres from Spotify API")
+        albums_and_genres = add_new_column(albums, 'artist_genres')
         print("collecting album tracks from Spotify API")
-        albums_and_tracks = add_new_column(albums, 'track')
+        albums_and_tracks = add_new_column(albums_and_genres, 'track')
         print("collecting track lyrics from Genius API")
         tracks_and_lyrics = add_new_column(albums_and_tracks, 'lyric')
         
@@ -90,6 +92,53 @@ def get_wiki_album_names():
 
     return df
 
+def get_artist_genres(album, artist):
+    
+    '''
+    Given album and artist name function returns the artist genres
+    from the spotify API
+    
+    Parameters:
+        album (str): album name
+        artist (str): artist name
+
+    Returns:
+        df (DataFrame): df containing artist, album and artist genres
+    '''
+    
+    searchQuery = album + ' ' + artist
+    searchResults = sp.search(q=searchQuery, limit = 1)
+    
+    df = pd.DataFrame(columns=['artist', 'album', 'artist_genres', 'artist_uri'])
+        
+    try:
+        artist_uri = searchResults['tracks']['items'][0]['artists'][0]['uri']
+    except IndexError:
+        print(f"Album '{album}' by artist '{artist}' not found with Spotify"
+              + " API search")
+    
+    else:
+        retries = 0
+        while retries < 2:
+            try:
+                genre = sp.artist(artist_uri)['genres']
+            
+            except requests.exceptions.Timeout:
+                print("Timeout error wait 10 seconds and retry, attempt: " + retries)
+                time.sleep(10)
+                retries = retries + 1
+                continue
+            break
+            
+        df = df.append({'artist': artist, 
+                        'album': album,
+                        'artist_genres': genre,
+                        'artist_uri': artist_uri}, ignore_index=True)
+         
+    return df
+
+
+
 def get_album_tracks(album, artist):
     
     '''
@@ -134,7 +183,7 @@ def get_album_tracks(album, artist):
             df = df.append({'artist': artist, 
                             'album': album,
                             'track': track,
-                             'track_uri': track_uri}, ignore_index=True)
+                            'track_uri': track_uri}, ignore_index=True)
          
     return df
         
@@ -173,7 +222,8 @@ def get_track_lyrics(track, artist):
                 break    
         break
     
-    lyric = (lyric[:30000] + ' [TRUNCATED]') if len(lyric) > 30000 else lyric
+    if lyric is not None:
+        lyric = (lyric[:30000] + ' [TRUNCATED]') if len(lyric) > 30000 else lyric
         
     d = {'artist': artist, 
          'track': track, 
@@ -200,6 +250,8 @@ def add_new_column(df, column):
     '''
     t0 = time.time()
     
+    if column == "artist_genres":
+        join_column = 'album'
     if column == "track":
         join_column = 'album'
     if column == "lyric":
@@ -208,6 +260,8 @@ def add_new_column(df, column):
     values = pd.DataFrame(columns=['artist', join_column, column])
     
     for i in range(len(df)):
+        if column == "artist_genres":
+            values = values.append(get_artist_genres(df[join_column][i], df['artist'][i]))
         if column == "track":
             values = values.append(get_album_tracks(df[join_column][i], df['artist'][i]))
         if column == "lyric":
