@@ -53,7 +53,7 @@ def import_data(overwrite=False):
             print(str(e))
             df = tracks_and_lyrics
     else:
-        df = pd.read_csv(cp.DATA_PATH + "lyrics_2020.csv")
+        df = pd.read_csv(cp.DATA_PATH + "lyrics_2020.csv", index_col=0)
   
     return df
     
