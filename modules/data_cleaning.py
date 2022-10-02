@@ -13,6 +13,9 @@ import itertools
 import pandas as pd 
 
 from nltk.tokenize import word_tokenize
+from spacy.language import Language
+from spacy_langdetect import LanguageDetector
+
 
 from modules import constant_paths as cp
 
@@ -58,6 +61,20 @@ def data_cleaning(data):
     data = data.dropna(subset=['lyric'])
     
     data = data.reset_index(drop = True)
+    
+    frequent_lines = get_frequent_lines(data['lyric'], 
+                    word_count = 6, char_count = 20, freq = 10)
+    
+    first_lines = get_first_lines(data['lyric'])
+                                       
+    print("number of frequent lines removed: ", len(frequent_lines))
+    print("number of first lines removed: ", len(first_lines))
+    
+    data['lyric_cleaned'] = data.copy()['lyric']
+    data['lyric_cleaned'] = clean_lyrics(data['lyric_cleaned'],
+             boiler = frequent_lines + first_lines)
+    
+    data = lyric_lang(data, 'lyric_cleaned')
     
     return data
 
@@ -248,3 +265,39 @@ def clean_lyrics(doc_series, boiler = None):
     doc_series = doc_series.str.lower()
     
     return doc_series
+
+
+def get_lang_detector(nlp, name):
+    return LanguageDetector()
+
+
+def lyric_lang(df, column = 'lyrics_cleaned'):
+    """
+    Function detects language of text in specificed column and returns
+    df with two new columns containing language and language probability
+    
+    Parameters:
+        df (dataframe): dataframe containing at least one text column.
+        column (str): text column name.
+
+    Returns:
+        df (dataframe): pandas dataframe with language information
+    
+    """
+    
+    nlp = spacy.load("en_core_web_sm")
+    Language.factory("language_detector", func=get_lang_detector)
+    nlp.add_pipe('language_detector', last=True)
+    
+    lang_df = pd.DataFrame(columns=['language', 'language_score'])
+    
+    for text in df[column]:
+        doc = nlp(text)
+        language = doc._.language["language"]
+        language_score = round(doc._.language["score"], 3)
+        lang_df = lang_df.append({'language': language, 
+                        'language_score': language_score}, ignore_index=True)
+    df = df.join(lang_df, how = 'left')
+    
+    return df
+
