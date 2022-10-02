@@ -45,4 +45,6 @@ def data_cleaning(data):
     data = data.dropna(subset=['track'])
     data = data.dropna(subset=['lyric'])
     
+    data = data.reset_index(drop = True)
+    
     return data
