@@ -163,6 +163,7 @@ def clean_lyrics(doc_series, boiler = None):
     # Remove contractions
     doc_series = doc_series.str.replace(r"won't", "will not")
     doc_series = doc_series.str.replace(r"can't", "cannot")
+    doc_series = doc_series.str.replace(r"ain't", "is not")
     doc_series = doc_series.str.replace(r"n't", " not")
     doc_series = doc_series.str.replace(r"'re", " are")
     doc_series = doc_series.str.replace(r"'s", " is")
@@ -173,6 +174,9 @@ def clean_lyrics(doc_series, boiler = None):
     doc_series = doc_series.str.replace(r"'m", " am")
     doc_series = doc_series.str.replace(r"'cause", "because")
     doc_series = doc_series.str.replace(r"in'", "ing")
+    doc_series = doc_series.str.replace(r"n'", "and")
+    doc_series = doc_series.str.replace(r"'round", "around")
+    
     
     # remove excess spaces and leading/ trailing spaces
     doc_series = doc_series.str.replace('\s+', ' ').str.strip()
@@ -184,7 +188,11 @@ def clean_lyrics(doc_series, boiler = None):
     doc_series = doc_series.str.replace('embed', '')
     
     # remove punctuation
-    doc_series = doc_series.str.replace('[.,;:!?\-//]', '')
+    doc_series = doc_series.str.replace('[.,;:!?\//""]', '')
+    doc_series = doc_series.str.replace('-', ' ')
+    doc_series = doc_series.str.replace("'", '')
+    doc_series = doc_series.str.replace("[()]", '')
+    doc_series = doc_series.str.replace('\\\w+', '')
     
     # remove excess spaces and leading/ trailing spaces
     doc_series = doc_series.str.replace('\s+', ' ').str.strip()
