@@ -5,14 +5,15 @@ Created on Sun Sep 25 21:13:58 2022
 @author: eller
 """
 
-import string
+
 import spacy
 import re
 import itertools
+import time
+import os
 
 import pandas as pd 
 
-from nltk.tokenize import word_tokenize
 from spacy.language import Language
 from spacy_langdetect import LanguageDetector
 
@@ -42,7 +43,7 @@ def data_checks(df):
           .duplicated(subset=["album", "artist", "track"], keep='first')\
           .sum())
         
-def data_cleaning(data):
+def data_cleaning(data, overwrite_step1 = False, overwrite_step2 = False):
     '''
     Function provides basic cleaning for collected dataframe 
         - removes rows with track duplicates
@@ -54,27 +55,68 @@ def data_cleaning(data):
     Returns:
         df (DataFrame): cleaned df
     '''
+    ### Step 1
+    t0 = time.time()
+    if os.path.exists(cp.DATA_PATH + "lyrics_2020_cleaned_step1.csv") == False\
+    or overwrite_step1 == True:
+        
+        data = data.drop_duplicates(subset=["album", "artist", "track"], keep='first')
     
-    data = data.drop_duplicates(subset=["album", "artist", "track"], keep='first')
+        data = data.dropna(subset=['track'])
+        data = data.dropna(subset=['lyric'])
     
-    data = data.dropna(subset=['track'])
-    data = data.dropna(subset=['lyric'])
+        data = data.reset_index(drop = True)
     
-    data = data.reset_index(drop = True)
-    
-    frequent_lines = get_frequent_lines(data['lyric'], 
+        frequent_lines = get_frequent_lines(data['lyric'], 
                     word_count = 6, char_count = 20, freq = 10)
     
-    first_lines = get_first_lines(data['lyric'])
+        first_lines = get_first_lines(data['lyric'])
                                        
-    print("number of frequent lines removed: ", len(frequent_lines))
-    print("number of first lines removed: ", len(first_lines))
-    
-    data['lyric_cleaned'] = data.copy()['lyric']
-    data['lyric_cleaned'] = clean_lyrics(data['lyric_cleaned'],
+        print("number of frequent lines removed: ", len(frequent_lines))
+        print("number of first lines removed: ", len(first_lines))
+        
+        data['lyric_cleaned'] = data.copy()['lyric']
+        data['lyric_cleaned'] = clean_lyrics(data['lyric_cleaned'],
              boiler = frequent_lines + first_lines)
     
-    data = lyric_lang(data, 'lyric_cleaned')
+        data = lyric_lang(data, 'lyric_cleaned')
+        
+        try:
+            data.to_csv(cp.DATA_PATH + "lyrics_2020_cleaned_step1.csv")
+            print("file written: " + cp.DATA_PATH + "lyrics_2020_cleaned_step1.csv")
+        except Exception as e:
+            print(str(e))
+    else:
+        print("skip step 1")
+        data = pd.read_csv(cp.DATA_PATH + "lyrics_2020_cleaned_step1.csv", index_col=0)  
+    
+    t1 = time.time() - t0
+    print("Time elapsed for step 1: ", t1, " seconds")
+    
+    ### Step 2
+    t0 = time.time()
+    if os.path.exists(cp.DATA_PATH + "lyrics_2020_cleaned_step2.csv") == False\
+    or overwrite_step2 == True:
+
+        data = data.loc[data["language"] == "en"]
+        data = data.loc[data["language_score"] > 0.999996]
+        
+        data = data.reset_index(drop = True)
+        
+        data['lyric_cleaned'] = data['lyric_cleaned'].str.replace('[^a-zA-Z ]+', '')
+        data['lyric_cleaned'] = data['lyric_cleaned'].str.replace('\s+', ' ').str.strip()
+        
+        try:
+            data.to_csv(cp.DATA_PATH + "lyrics_2020_cleaned_step2.csv")
+            print("file written: " + cp.DATA_PATH + "lyrics_2020_cleaned_step2.csv")
+        except Exception as e:
+            print(str(e))
+    else:
+        print("skip step 2")
+        data = pd.read_csv(cp.DATA_PATH + "lyrics_2020_cleaned_step2.csv", index_col=0)  
+    
+    t1 = time.time() - t0
+    print("Time elapsed for step 2: ", t1, " seconds")
     
     return data
 
@@ -294,7 +336,7 @@ def lyric_lang(df, column = 'lyrics_cleaned'):
     for text in df[column]:
         doc = nlp(text)
         language = doc._.language["language"]
-        language_score = round(doc._.language["score"], 3)
+        language_score = doc._.language["score"]
         lang_df = lang_df.append({'language': language, 
                         'language_score': language_score}, ignore_index=True)
     df = df.join(lang_df, how = 'left')

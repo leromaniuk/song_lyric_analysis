@@ -11,7 +11,7 @@ import modules.data_cleaning as dc
 lyrics = gl.import_data(overwrite=False)
 dc.data_checks(lyrics)
 
-lyrics_cleaned = dc.data_cleaning(lyrics)
+lyrics_cleaned = dc.data_cleaning(lyrics, overwrite_step1 = True, overwrite_step2 = True)
 dc.data_checks(lyrics_cleaned)
 
 lyrics_cleaned['lyric_cleaned'] = lyrics_cleaned.copy()['lyric']
