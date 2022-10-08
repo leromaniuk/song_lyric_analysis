@@ -12,7 +12,9 @@ import time
 import os
 
 import pandas as pd 
+import numpy as np
 
+from statistics import mode
 from spacy.language import Language
 from spacy_langdetect import LanguageDetector
 
@@ -47,6 +49,8 @@ def data_cleaning(data, overwrite_step1 = False, overwrite_step2 = False):
     Function provides basic cleaning for collected dataframe 
         - removes rows with track duplicates
         - removes rows with missing tracks or lyrics
+        - removes rows with lyrics not in english
+        - simplifies song genres to one key genre
     
     Parameters:
         df (DataFrame): df containing artist, album/ tracks
@@ -104,6 +108,36 @@ def data_cleaning(data, overwrite_step1 = False, overwrite_step2 = False):
         
         data['lyric_cleaned'] = data['lyric_cleaned'].str.replace('[^a-zA-Z ]+', '')
         data['lyric_cleaned'] = data['lyric_cleaned'].str.replace('\s+', ' ').str.strip()
+        
+        data.rename(columns = {'genre':'album_genres'}, inplace = True)
+        data['album_genres'] = data['album_genres'].str.lower()
+        data['album_genres'] = data['album_genres'].str.strip('()').str.split(',')
+        data['album_genres'] = [[] if x is np.NaN else x for x in data['album_genres']]
+        
+        data['artist_genres'] = data['artist_genres'].str.replace("'", "")
+        data['artist_genres'] = data['artist_genres'].str.replace("[", "")
+        data['artist_genres'] = data['artist_genres'].str.replace("]", "")
+        data['artist_genres'] = data['artist_genres'].str.strip('()').str.split(',')
+        data['genre'] = data['album_genres'] + data['artist_genres']
+        data.drop(columns=['album_genres', 'artist_genres'])
+        
+        genres = data['genre']\
+                    .explode()\
+                    .str.replace('\s+', ' ')\
+                    .str.strip()\
+                    .value_counts() 
+        print(genres[0:30])
+        
+        data['genre'] = data['genre'].str.join(" ").str.replace('\s+', ' ').str.strip()
+        data['genre'] = data['genre'].str.replace("hip hop", "hip_hop")
+        data['genre'] = data['genre'].str.replace("escape room", "escape_room")
+        
+        data = simplify_genres(data)
+        
+        data = data.dropna(subset=['simple_genre'])
+        data = data.reset_index(drop = True)
+        
+        data["mode_genre"] = data["simple_genre"].apply(mode)
         
         try:
             data.to_csv(cp.DATA_PATH + "lyrics_2020_cleaned_step2.csv")
@@ -342,3 +376,38 @@ def lyric_lang(df, column = 'lyrics_cleaned'):
     
     return df
 
+def simplify_genres(data, simple_genres = None):
+    """
+    Function simplifies song genres to one key genre.
+    
+    Key genres can be specified as a list of simple_genres
+    
+    Parameters:
+        data (dataframe): dataframe containing column of genres.
+        simple_genres (list): list of key genres.
+
+    Returns:
+        df (dataframe): pandas dataframe with simple genre column
+    
+    """
+    
+    if simple_genres is None:
+        simple_genres = ["pop", "hip_hop", "rap", "dance", "rock", "trap", "indie", "r&b",
+                    "country", "escape_room", "metal"]
+    
+    query = '|'.join(simple_genres)
+    
+    genres = data["genre"].str.extractall('({})'.format(query))
+    genres = genres.unstack()[0].fillna("")
+    cols = list(range(genres.count(axis='columns')[0]))
+    genres["simple_genre"] = genres[cols].agg(' '.join, axis=1)
+    genres["simple_genre"] = genres["simple_genre"].str.replace('\s+', ' ')\
+        .str.strip()
+    
+    genres["simple_genre"] = genres["simple_genre"].str.strip('()').str.split(' ')
+    genres = genres[["simple_genre"]]
+    
+    data = data.join(genres, how = 'left')
+    
+    return data
+ 
