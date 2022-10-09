@@ -17,9 +17,11 @@ import numpy as np
 from statistics import mode
 from spacy.language import Language
 from spacy_langdetect import LanguageDetector
-
+from nltk.tokenize import word_tokenize
 
 from modules import constant_paths as cp
+
+nlp = spacy.load("en_core_web_sm")
 
 
 def data_checks(df):
@@ -44,7 +46,8 @@ def data_checks(df):
           .duplicated(subset=["album", "artist", "track"], keep='first')\
           .sum())
         
-def data_cleaning(data, overwrite_step1 = False, overwrite_step2 = False):
+def data_cleaning(data, overwrite_step1 = False, overwrite_step2 = False,
+                  overwrite_step3 = False, overwrite_step4 = False):
     '''
     Function provides basic cleaning for collected dataframe 
         - removes rows with track duplicates
@@ -150,6 +153,66 @@ def data_cleaning(data, overwrite_step1 = False, overwrite_step2 = False):
     
     t1 = time.time() - t0
     print("Time elapsed for step 2: ", t1, " seconds")
+    
+    
+    ### Step 3
+    t0 = time.time()
+    if os.path.exists(cp.DATA_PATH + "lyrics_2020_cleaned_step3.csv") == False\
+    or overwrite_step3 == True:
+        
+        data['lyric_preprocess']=data['lyric_cleaned']\
+            .copy()\
+            .apply(preprocess_text, lemma=True, stop_words=True, str_len=3)
+        
+        data['word_count'] = data\
+            .copy()['lyric_preprocess']\
+            .str.replace('\s+',' ')\
+            .str.strip()\
+            .apply(lambda x: len(str(x).split(" ")))
+              
+        data['char_count'] = data\
+            .copy()['lyric_preprocess']\
+            .str.replace('\s+',' ')\
+            .str.strip()\
+            .str.len()
+        
+        try:
+            data.to_csv(cp.DATA_PATH + "lyrics_2020_cleaned_step3.csv")
+            print("file written: " + cp.DATA_PATH + "lyrics_2020_cleaned_step3.csv")
+        except Exception as e:
+            print(str(e))
+    else:
+        print("skip step 3")
+        data = pd.read_csv(cp.DATA_PATH + "lyrics_2020_cleaned_step3.csv", index_col=0)  
+    
+    t1 = time.time() - t0
+    print("Time elapsed for step 3: ", t1, " seconds")
+    
+    
+    ### Step 4
+    t0 = time.time()
+    if os.path.exists(cp.DATA_PATH + "lyrics_2020_cleaned_step4.csv") == False\
+    or overwrite_step4 == True:
+        
+        data = data[data["word_count"] >= 50]
+        
+        data = data[["artist", "album", "track", "mode_genre",
+                     "lyric_preprocess", "word_count", "char_count"]]
+        
+        data = data.reset_index(drop = True)
+        
+        try:
+            data.to_csv(cp.DATA_PATH + "lyrics_2020_cleaned_step4.csv")
+            print("file written: " + cp.DATA_PATH + "lyrics_2020_cleaned_step4.csv")
+        except Exception as e:
+            print(str(e))
+    else:
+        print("skip step 4")
+        data = pd.read_csv(cp.DATA_PATH + "lyrics_2020_cleaned_step4.csv", index_col=0)  
+    
+    t1 = time.time() - t0
+    print("Time elapsed for step 4: ", t1, " seconds")
+    
     
     return data
 
@@ -410,4 +473,65 @@ def simplify_genres(data, simple_genres = None):
     data = data.join(genres, how = 'left')
     
     return data
+
+def preprocess_text(lyric, lemma=True, stop_words=True, str_len=3):
+    """
+    Function to preprocess text with options to remove words less than a
+    certain length, lemmatize  and remove stopwords from str.
+    
+    Parameters:
+        
+        lemma (bool): If True uses Spacy module to lemmatise character strings
+        stop_words (bool): If True uses Spacy module to remove stopwords from 
+                            character strings
+        str_len (int): Minimum length of a string
+        
+        data (dataframe): dataframe containing column of genres.
+        simple_genres (list): list of key genres.
+
+    Returns:
+        df (dataframe): pandas dataframe with simple genre column
+
+    Parameters
+    ----------
+    notification : str
+        Load a string.
+        
+    str_len: str
+        Minimum length of a string.
+        
+    lemma : bool
+        Uses Spacy module to lemmatise character strings.
+        
+    stop_words : bool
+        Uses Spacy module to remove stopwords from character strings.
+
+    Returns
+    -------
+    x: str
+        Returns input str with preprocessing applied.
+    """
+    
+    if lemma == True:
+        doc = nlp(lyric)
+        lyric2 = []
+        lyric2.append([token.lemma_ for token in doc])
+        lyric2=lyric2[0]
+    else:
+        lyric2 = word_tokenize(lyric2)
+
+    if stop_words == True:
+        stopwords = set(nlp.Defaults.stop_words)
+        lyric3 = [w for w in lyric2 if not w in stopwords]
+    else: lyric3=lyric2
+    
+    # remove words less than str_len         
+    lyric3 = [w for w in lyric3 if w.isalpha()==False or len(w) >= str_len]
+    
+    x = " ".join([w for w in lyric3])
+    
+    x = re.sub('(_\s)([a-z]*)(\s_)', r'_\2_', x)
+              
+    return(x)
+
  
